@@ -17,7 +17,7 @@
 
 Name:           flexiblas
 Version:        %{major_version}.%{minor_version}.%{patch_version}
-Release:        8%{?dist}
+Release:        9%{?dist}
 Summary:        A BLAS/LAPACK wrapper library with runtime exchangeable backends
 
 # GPLv3 with an exception for the BLAS/LAPACK interface
@@ -32,6 +32,7 @@ Patch1: flexiblas-3.0.4-annocheck.patch
 
 BuildRequires:  make, cmake, python
 BuildRequires:  gcc-fortran, gcc-c++
+BuildRequires:  multilib-rpm-config
 %if %{with system_lapack}
 BuildRequires:  blas-static, lapack-static
 %endif
@@ -71,6 +72,10 @@ This package contains a plugin that enables profiling support.
 %package        devel
 Summary:        Development headers and libraries for FlexiBLAS
 Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       %{name}-netlib%{?_isa} = %{version}-%{release}
+%if 0%{?__isa_bits} == 64
+Requires:       %{name}-netlib64%{?_isa} = %{version}-%{release}
+%endif
 
 %description    devel %_description
 This package contains the development headers and libraries.
@@ -222,6 +227,7 @@ rm -rf contributed
     -DSYS_LAPACK_LIBRARY=$(pkg-config --variable=libdir lapack)/liblapack_pic.a \
 %endif
     -DINTEGER8=OFF \
+    -DCMAKE_SKIP_INSTALL_RPATH=ON \
     -DTESTS=ON
 %make_build -C build
 %if 0%{?__isa_bits} == 64
@@ -232,6 +238,7 @@ rm -rf contributed
     -DSYS_LAPACK_LIBRARY=$(pkg-config --variable=libdir lapack)/liblapack_pic64.a \
 %endif
     -DINTEGER8=ON \
+    -DCMAKE_SKIP_INSTALL_RPATH=ON \
     -DTESTS=ON
 %make_build -C build64
 %endif
@@ -243,6 +250,9 @@ echo "default = %{default_backend}" > %{buildroot}%{_sysconfdir}/%{name}rc
 %make_install -C build64
 echo "default = %{default_backend64}" > %{buildroot}%{_sysconfdir}/%{name}64rc
 %endif
+
+# Replace arch-dependent header file with arch-independent stub
+%multilib_fix_c_header --file %{_includedir}/%{name}/%{name}_config.h
 
 # remove dummy hook
 rm -f %{buildroot}%{_libdir}/%{name}*/lib%{name}_hook_dummy.so
@@ -400,6 +410,11 @@ make -C build64 test
 %endif
 
 %changelog
+* Fri Feb 06 2026 Lukáš Zaoral <lzaoral@redhat.com>- 3.0.4-9
+- backport the following fixes from Fedora:
+  - fix header conflicts in multilib installs (RHEL-134741)
+  - fix rpmlint warnings
+
 * Mon Feb 28 2022 Matej Mužila <mmuzila@redhat.com> - 3.0.4-8
 - Don't use --as-needed link option
   Related: rhbz#2044859
